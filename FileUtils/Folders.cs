@@ -69,7 +69,6 @@ namespace FileUtils
             }
         }
 
-
         /// <summary>
         /// Copies all files and subdirectories from the source folder to the destination folder.
         /// Creates the destination folder if it doesn't exist.
