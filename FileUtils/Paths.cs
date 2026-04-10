@@ -1,9 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Runtime.InteropServices;
-using System.Text;
-
-namespace FileUtils
+﻿namespace FileUtils
 {
     public static partial class FileUtils
     {
@@ -79,9 +74,7 @@ namespace FileUtils
             // Use the string comparison that matches the host file system's own rules:
             //   Windows / macOS  → case-insensitive  (OrdinalIgnoreCase)
             //   Linux            → case-sensitive    (Ordinal)
-            StringComparison comparison = RuntimeInformation.IsOSPlatform(OSPlatform.Linux)
-                ? StringComparison.Ordinal
-                : StringComparison.OrdinalIgnoreCase;
+            StringComparison comparison = GetPathComparison();
 
             return fullPath.StartsWith(fullDirectory, comparison);
         }
@@ -109,5 +102,104 @@ namespace FileUtils
             return string.Equals(p1, p2, comparison);
         }
 
+        /// <summary>
+        /// Returns the appropriate <see cref="StringComparison"/> strategy for comparing file system paths
+        /// on the current operating system.
+        /// </summary>
+        /// <returns>
+        /// <see cref="StringComparison.OrdinalIgnoreCase"/> on case-insensitive file systems
+        /// (Windows, macOS, Mac Catalyst, iOS, tvOS, and watchOS);
+        /// otherwise, <see cref="StringComparison.Ordinal"/> for case-sensitive file systems (e.g. Linux).
+        /// </returns>
+        public static StringComparison GetPathComparison()
+        {
+            StringComparison comparison = (OperatingSystem.IsWindows()
+                                        || OperatingSystem.IsMacOS()
+                                        || OperatingSystem.IsMacCatalyst()
+                                        || OperatingSystem.IsIOS()
+                                        || OperatingSystem.IsTvOS()
+                                        || OperatingSystem.IsWatchOS())
+                ? StringComparison.OrdinalIgnoreCase
+                : StringComparison.Ordinal;
+            return comparison;
+        }
+
+        public static StringComparison GetPathComparison(string path)
+        {
+            if (!Directory.Exists(path))
+                return GetPathComparison();
+
+            try
+            {
+                // Resolve to a full path and walk up until we find an existing directory to probe
+                string fullPath = Path.GetFullPath(path);
+
+                if (!path.EndsWith(Path.DirectorySeparatorChar) && !path.EndsWith(Path.AltDirectorySeparatorChar))
+                    path += Path.DirectorySeparatorChar;
+
+
+                char[] pathChars = fullPath.ToCharArray();
+
+                pathChars[0] = char.ToLower(pathChars[0]);
+                fullPath = new string(pathChars);
+
+                pathChars[0] = char.ToUpper(pathChars[0]);
+
+
+
+                bool caseSensitive = Directory.Exists(fullPath);
+
+                // A case-insensitive file system will resolve the toggled name to the same entry
+                return caseSensitive ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+            }
+            catch
+            {
+                // I/O errors, permission denied, etc. — degrade gracefully
+                return GetPathComparison();
+            }
+        }
+
+        public static bool IsPathCaseSensitive(string path)
+        {
+            if (!Directory.Exists(path))
+                throw new DirectoryNotFoundException($"The directory '{path}' does not exist.");
+
+            // Resolve to a full path and walk up until we find an existing directory to probe
+            string fullPath = Path.GetFullPath(path);
+
+            string newPath = fullPath;
+
+            char[] pathChars = fullPath.ToCharArray();
+            for (int i = pathChars.Length - 1; i >= 0; i--)
+            {
+                if (char.IsLetter(pathChars[i]))
+                {
+                    // Toggle the case of the first letter we find from the end
+                    pathChars[i] = char.IsUpper(pathChars[i]) ? char.ToLower(pathChars[i]) : char.ToUpper(pathChars[i]);
+                    newPath = new string(pathChars);
+
+                    // If swapping a letter to upper/lower case results in a different path that does not exists, then the file system is case-insensitive
+                    if (!Directory.Exists(newPath))
+                        return true;
+
+                    // If the two paths have different creation times, then they are different entries and the file system is case-sensitive
+                    if (!Directory.GetCreationTime(newPath).Equals(Directory.GetCreationTime(fullPath)))
+                        return true;
+                    
+                    return false;
+                }
+            }
+
+            return false;
+        }
+
+        public static void TrimDirectorySeparator(ref string path)
+        {
+            path = path.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        }
+        public static string TrimDirectorySeparator(string path)
+        {
+            return path.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        }
     }
 }

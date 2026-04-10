@@ -83,32 +83,23 @@
             File.WriteAllLines(path, lines);
         }
 
-        public static void RenameFile(string filePath, string expectedFileName)
+        public static void RenameFile(string filePath, string newName)
         {
             if (!File.Exists(filePath))
-            {
-                Console.WriteLine("File does not exist: " + filePath);
-                return;
-            }
+                throw new FileNotFoundException($"File not found: {filePath}");
+            
+            string? directory = Path.GetDirectoryName(filePath);
 
-            string directory = Path.GetDirectoryName(filePath);
-            string newFilePath = Path.Combine(directory, expectedFileName);
+            // Should never be null since filePath is valid. Just to supress warnnings. 
+            if (directory == null)
+                throw new DirectoryNotFoundException($"Directory not found for file: {filePath}");
+
+            string newFilePath = Path.Combine(directory, newName);
 
             if (File.Exists(newFilePath))
-            {
-                Console.WriteLine("A file with the new name already exists: " + newFilePath);
-                return;
-            }
+                throw new IOException($"A file with the name '{newName}' already exists in the directory '{directory}'.");
 
-            try
-            {
-                File.Move(filePath, newFilePath);
-                Console.WriteLine("File renamed successfully to: " + expectedFileName);
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine("Error renaming file: " + ex.Message);
-            }
+            File.Move(filePath, newFilePath);
         }
 
         /// <summary>
